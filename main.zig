@@ -1,16 +1,25 @@
 const std = @import("std");
 const math = std.math;
 const io = std.io;
-const mem = std.mem;
 const rand = std.rand;
 const ArrayList = std.ArrayList;
 
 const factor = 2;
-
 const imageWidth = 200 * factor;
 const imageHeight = 100 * factor;
 const maxColor = 255;
 const samplesPerPixel = 100;
+const maxDepth = 50;
+
+var prng: rand.DefaultPrng =  rand.DefaultPrng.init(0);
+
+fn randomf64() f64 {
+    return prng.random.float(f64);
+}
+
+fn randomf64Range(min: f64, max: f64) f64 {
+    return min + (max - min) * randomf64();
+}
 
 const Vec3 = struct {
     x: f64,
@@ -27,6 +36,39 @@ const Vec3 = struct {
 
     pub fn zero() Vec3 {
         return Vec3.new(0, 0, 0);
+    }
+
+    pub fn random() Vec3 {
+        return Vec3.new(randomf64(), randomf64(), randomf64());
+    }
+
+    pub fn randomRange(min: f64, max: f64) Vec3 {
+        return Vec3.new(
+            randomf64Range(min, max),
+            randomf64Range(min, max),
+            randomf64Range(min, max),
+        );
+    }
+
+    pub fn randomInUnitSphere() Vec3 {
+        while (true) {
+            const p = Vec3.randomRange(-1, 1);
+            if (p.lengthSquared() < 1) {
+                return p;
+            }
+        }
+    }
+
+    pub fn randomUnitVector() Vec3 {
+        const a = randomf64Range(0, 2*math.pi);
+        const z = randomf64Range(-1, 1);
+        const r = math.sqrt(1 - z * z);
+        return Vec3.new(r * math.cos(a), r * math.sin(a), z);
+    }
+
+    pub fn randomInHemisphere(normal: Vec3) Vec3 {
+        const inUnitSphere = randomInUnitSphere();
+        return if (inUnitSphere.dot(normal) > 0 ) inUnitSphere else inUnitSphere.mul(-1);
     }
 
     pub fn neg(self: Vec3) Vec3 {
@@ -72,9 +114,9 @@ const Vec3 = struct {
     }
 
     pub fn write(self: Vec3, out: var) !void {
-        const r = self.x / samplesPerPixel;
-        const g = self.y / samplesPerPixel;
-        const b = self.z / samplesPerPixel;
+        const r = math.sqrt(self.x / samplesPerPixel);
+        const g = math.sqrt(self.y / samplesPerPixel);
+        const b = math.sqrt(self.z / samplesPerPixel);
 
         try out.print("{} {} {}\n", .{
             @floatToInt(u8, r * maxColor),
@@ -191,9 +233,12 @@ const Camera = struct {
     }
 };
 
-fn rayColor(ray: Ray, hittable: HittableList) Vec3 {
-    if (hittable.hit(ray, 0, math.inf(f64))) |hit| {
-        return hit.normal.add(Vec3.new(1, 1, 1)).mul(0.5);
+fn rayColor(ray: Ray, depth: i32, world: HittableList) Vec3 {
+    if (depth <= 0) return Vec3.zero();
+
+    if (world.hit(ray, 0.001, math.inf(f64))) |hit| {
+        const target = hit.point.add(hit.normal).add(Vec3.randomUnitVector());
+        return rayColor(Ray.new(hit.point, target.sub(hit.point)), depth - 1, world).mul(0.5);
     }
 
     const unitDirection = ray.direction.unit();
@@ -218,23 +263,18 @@ pub fn main() !void {
 
     const world = HittableList{ .objects = spheres };
 
-    var buf: [8]u8 = undefined;
-    try std.crypto.randomBytes(buf[0..]);
-    const seed = mem.readIntLittle(u64, buf[0..8]);
-    var r = rand.DefaultPrng.init(seed);
-
     var y: i32 = imageHeight;
     while (y >= 0) : (y -= 1) {
-        try stderr.print("\rScanlines remaining: {: >3}", .{@intCast(u32, y)});
+        try stderr.print("\rScanlines remaining: {}      ", .{@intCast(u32, y)});
         var x: i32 = 0;
         while (x < imageWidth) : (x += 1) {
             var color = Vec3.zero();
             var s: i32 = 0;
             while (s < samplesPerPixel) : (s += 1) {
-                const u = (@intToFloat(f64, x) + r.random.float(f64)) / imageWidth;
-                const v = (@intToFloat(f64, y) + r.random.float(f64)) / imageHeight;
+                const u = (@intToFloat(f64, x) + randomf64()) / imageWidth;
+                const v = (@intToFloat(f64, y) + randomf64()) / imageHeight;
                 const ray = camera.getRay(u, v);
-                color.addAssign(rayColor(ray, world));
+                color.addAssign(rayColor(ray, maxDepth, world));
             }
             try color.write(stdout);
         }
