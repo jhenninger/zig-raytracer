@@ -44,8 +44,8 @@ pub const Vec3 = struct {
     }
 
     pub fn randomInHemisphere(random: *Random, normal: Vec3) Vec3 {
-        const inUnitSphere = randomInUnitSphere(random);
-        return if (inUnitSphere.dot(normal) > 0 ) inUnitSphere else inUnitSphere.mul(-1);
+        const in_unit_sphere = randomInUnitSphere(random);
+        return if (in_unit_sphere.dot(normal) > 0 ) in_unit_sphere else in_unit_sphere.mul(-1);
     }
 
     pub fn neg(self: Vec3) Vec3 {
@@ -90,13 +90,13 @@ pub const Vec3 = struct {
         return self.div(self.length());
     }
 
-    pub fn write(self: Vec3, out: var, samplesPerPixel: u32, maxColor: u32) !void {
-        const samples = @intToFloat(f64, samplesPerPixel);
+    pub fn write(self: Vec3, out: var, samples_per_pixel: u32, max_color: u32) !void {
+        const samples = @intToFloat(f64, samples_per_pixel);
         const r = math.sqrt(self.x / samples);
         const g = math.sqrt(self.y / samples);
         const b = math.sqrt(self.z / samples);
 
-        const max = @intToFloat(f64, maxColor);
+        const max = @intToFloat(f64, max_color);
         try out.print("{} {} {}\n", .{
             @floatToInt(u8, r * max),
             @floatToInt(u8, g * max),
