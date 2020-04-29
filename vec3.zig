@@ -74,6 +74,10 @@ pub const Vec3 = struct {
         return Vec3.new(self.x * scalar, self.y * scalar, self.z * scalar);
     }
 
+    pub fn mulVec(self: Vec3, other: Vec3) Vec3 {
+        return Vec3.new(self.x * other.x, self.y * other.y, self.z * other.z);
+    }
+
     pub fn div(self: Vec3, scalar: f64) Vec3 {
         return self.mul(1 / scalar);
     }

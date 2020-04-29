@@ -13,6 +13,8 @@ const HittableList = hittable.HittableList;
 
 const Ray = @import("ray.zig").Ray;
 
+const Material = @import("material.zig").Material;
+
 const factor = 2;
 const image_width = 200 * factor;
 const image_height = 100 * factor;
@@ -44,8 +46,12 @@ fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     if (depth <= 0) return Vec3.zero();
 
     if (world.hit(ray, 0.001, math.inf(f64))) |hit| {
-        const target = hit.point.add(hit.normal).add(Vec3.randomUnitVector(random));
-        return rayColor(Ray.new(hit.point, target.sub(hit.point)), depth - 1, world, random).mul(0.5);
+
+        if (hit.material.scatter(ray, hit, random)) |scatter| {
+            return scatter.attenuation.mulVec(rayColor(scatter.ray, depth - 1, world, random));
+        }
+
+        return Vec3.zero();
     }
 
     const unit_direction = ray.direction.unit();
@@ -61,13 +67,15 @@ pub fn main() !void {
 
     try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
 
-    var prng: rand.DefaultPrng =  rand.DefaultPrng.init(0);
+    var prng: rand.DefaultPrng = rand.DefaultPrng.init(0);
 
     const camera = Camera.new();
 
     const spheres = &[_]Sphere{
-        Sphere.new(Vec3.new(0, 0, -1), 0.5),
-        Sphere.new(Vec3.new(0, -100.5, -1), 100),
+        Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.7, 0.3, 0.3))),
+        Sphere.new(Vec3.new(0, -100.5, -1), 100, Material.lambertian(Vec3.new(0.8, 0.8, 0.0))),
+        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2))),
+        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.8, 0.8))),
     };
 
     const world = HittableList{ .objects = spheres };
