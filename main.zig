@@ -74,8 +74,8 @@ pub fn main() !void {
     const spheres = &[_]Sphere{
         Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.7, 0.3, 0.3))),
         Sphere.new(Vec3.new(0, -100.5, -1), 100, Material.lambertian(Vec3.new(0.8, 0.8, 0.0))),
-        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2))),
-        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.8, 0.8))),
+        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 1)),
+        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.8, 0.8), 0.3)),
     };
 
     const world = HittableList{ .objects = spheres };
