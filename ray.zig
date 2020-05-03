@@ -15,4 +15,3 @@ pub const Ray = struct {
         return self.origin.add(self.direction.mul(t));
     }
 };
-

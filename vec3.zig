@@ -19,6 +19,10 @@ pub const Vec3 = struct {
         return Vec3.new(0, 0, 0);
     }
 
+    pub fn one() Vec3 {
+        return Vec3.new(1, 1, 1);
+    }
+
     pub fn randomRange(random: *Random, min: f64, max: f64) Vec3 {
         return Vec3.new(
             randomf64Range(random, min, max),
@@ -37,7 +41,7 @@ pub const Vec3 = struct {
     }
 
     pub fn randomUnitVector(random: *Random) Vec3 {
-        const a = randomf64Range(random, 0, 2*math.pi);
+        const a = randomf64Range(random, 0, 2 * math.pi);
         const z = randomf64Range(random, -1, 1);
         const r = math.sqrt(1 - z * z);
         return Vec3.new(r * math.cos(a), r * math.sin(a), z);
@@ -45,7 +49,7 @@ pub const Vec3 = struct {
 
     pub fn randomInHemisphere(random: *Random, normal: Vec3) Vec3 {
         const in_unit_sphere = randomInUnitSphere(random);
-        return if (in_unit_sphere.dot(normal) > 0 ) in_unit_sphere else in_unit_sphere.mul(-1);
+        return if (in_unit_sphere.dot(normal) > 0) in_unit_sphere else in_unit_sphere.mul(-1);
     }
 
     pub fn neg(self: Vec3) Vec3 {

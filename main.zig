@@ -46,7 +46,6 @@ fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     if (depth <= 0) return Vec3.zero();
 
     if (world.hit(ray, 0.001, math.inf(f64))) |hit| {
-
         if (hit.material.scatter(ray, hit, random)) |scatter| {
             return scatter.attenuation.mulVec(rayColor(scatter.ray, depth - 1, world, random));
         }
@@ -67,15 +66,16 @@ pub fn main() !void {
 
     try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
 
-    var prng: rand.DefaultPrng = rand.DefaultPrng.init(0);
+    var prng = rand.DefaultPrng.init(0);
 
     const camera = Camera.new();
 
     const spheres = &[_]Sphere{
-        Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.7, 0.3, 0.3))),
+        Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.1, 0.2, 0.5))),
         Sphere.new(Vec3.new(0, -100.5, -1), 100, Material.lambertian(Vec3.new(0.8, 0.8, 0.0))),
-        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 1)),
-        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.8, 0.8), 0.3)),
+        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 0.3)),
+        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.dielectric(1.5)),
+        Sphere.new(Vec3.new(-1, 0, -1), -0.45, Material.dielectric(1.5)),
     };
 
     const world = HittableList{ .objects = spheres };
