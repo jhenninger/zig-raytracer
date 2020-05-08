@@ -21,6 +21,7 @@ const image_height = 100 * factor;
 const max_color = 255;
 const samples_per_pixel = 100;
 const max_depth = 50;
+const min_distance = 0.000001;
 
 const Camera = struct {
     origin: Vec3,
@@ -45,7 +46,7 @@ const Camera = struct {
 fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     if (depth <= 0) return Vec3.zero();
 
-    if (world.hit(ray, 0.001, math.inf(f64))) |hit| {
+    if (world.hit(ray, min_distance, math.inf(f64))) |hit| {
         if (hit.material.scatter(ray, hit, random)) |scatter| {
             return scatter.attenuation.mulVec(rayColor(scatter.ray, depth - 1, world, random));
         }
@@ -58,6 +59,40 @@ fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     const white = Vec3.new(1, 1, 1).mul(1 - t);
     const blue = Vec3.new(0.5, 0.7, 1).mul(t);
     return white.add(blue);
+}
+
+fn rayDepth(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
+    if (depth <= 0) {
+        return Vec3.one();
+    }
+
+    if (world.hit(ray, min_distance, math.inf(f64))) |hit| {
+        if (hit.material.scatter(ray, hit, random)) |scatter| {
+            return rayDepth(scatter.ray, depth - 1, world, random);
+        }
+    }
+
+    return Vec3.one().mul(@intToFloat(f64, max_depth - depth) / @intToFloat(f64, max_depth));
+}
+
+fn rayNormal(ray: Ray, world: HittableList) Vec3 {
+    if (world.hit(ray, min_distance, math.inf(f64))) |hit| {
+        return hit.normal.add(Vec3.one()).mul(0.5);
+    }
+
+    return Vec3.zero();
+}
+
+fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
+    if (world.hit(ray, min_distance, math.inf(f64))) |hit| {
+        return switch (hit.material.*) {
+            .Lambertian => |m| m.albedo,
+            .Metal => |m| m.albedo,
+            .Dielectric => Vec3.one(),
+        };
+    }
+
+    return Vec3.zero();
 }
 
 pub fn main() !void {
@@ -91,7 +126,13 @@ pub fn main() !void {
                 const u = (@intToFloat(f64, x) + prng.random.float(f64)) / image_width;
                 const v = (@intToFloat(f64, y) + prng.random.float(f64)) / image_height;
                 const ray = camera.getRay(u, v);
-                color.addAssign(rayColor(ray, max_depth, world, &prng.random));
+
+                // const sample_color = rayNormal(ray, world);
+                // const sample_color = rayAlbedo(ray, world);
+                // const sample_color = rayDepth(ray, max_depth, world, &prng.random);
+                const sample_color = rayColor(ray, max_depth, world, &prng.random);
+
+                color.addAssign(sample_color);
             }
             try color.write(stdout, samples_per_pixel, max_color);
         }
