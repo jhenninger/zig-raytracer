@@ -98,19 +98,14 @@ pub const Vec3 = struct {
         return self.div(self.length());
     }
 
-    pub fn write(self: Vec3, out: var, samples_per_pixel: u32, max_color: u32) !void {
-        const samples = @intToFloat(f64, samples_per_pixel);
-        const r = math.sqrt(self.x / samples);
-        const g = math.sqrt(self.y / samples);
-        const b = math.sqrt(self.z / samples);
-
-        const max = @intToFloat(f64, max_color);
-        try out.print("{} {} {}\n", .{
-            @floatToInt(u8, r * max),
-            @floatToInt(u8, g * max),
-            @floatToInt(u8, b * max),
-        });
+    pub fn cross(self: Vec3, other: Vec3) Vec3 {
+        return Vec3.new(
+            self.y * other.z - self.z * other.y,
+            self.z * other.x - self.x * other.z,
+            self.x * other.y - self.y * other.x,
+        );
     }
+
 };
 
 fn randomf64Range(random: *Random, min: f64, max: f64) f64 {

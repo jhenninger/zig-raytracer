@@ -10,20 +10,22 @@ pub const Camera = struct {
     horizontal: Vec3,
     vertical: Vec3,
 
-    pub fn new(vfov: f64, aspect_ratio: f64) Camera {
+    pub fn new(look_from: Vec3, look_at: Vec3, vup: Vec3, vfov: f64, aspect_ratio: f64) Camera {
         const theta = to_radians(vfov);
         const h = math.tan(theta / 2);
         const viewport_height = 2 * h;
         const viewport_width = aspect_ratio * viewport_height;
 
-        const focal_length = 1.0;
-        const origin = Vec3.zero();
-        const horizontal = Vec3.new(viewport_width, 0, 0);
-        const vertical = Vec3.new(0, viewport_height, 0);
-        const lower_left_corner = origin.sub(Vec3.new(0, 0, focal_length)).sub(vertical.div(2)).sub(horizontal.div(2));
+        const w = look_from.sub(look_at).unit();
+        const u = vup.cross(w).unit();
+        const v = w.cross(u);
+
+        const horizontal = u.mul(viewport_width);
+        const vertical = v.mul(viewport_height);
+        const lower_left_corner = look_from.sub(horizontal.div(2)).sub(vertical.div(2)).sub(w);
 
         return Camera{
-            .origin = origin,
+            .origin = look_from,
             .lower_left_corner = lower_left_corner,
             .horizontal = horizontal,
             .vertical = vertical,
@@ -35,6 +37,6 @@ pub const Camera = struct {
     }
 };
 
-fn to_radians(rads: f64) f64 {
-    return rads * (math.pi / 180.0);
+fn to_radians(degrees: f64) f64 {
+    return degrees * (math.pi / 180.0);
 }

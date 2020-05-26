@@ -17,7 +17,6 @@ const Camera = @import("camera.zig").Camera;
 const Material = @import("material.zig").Material;
 
 const aspect_ratio: f64 = 16.0 / 9.0;
-const fov: f64 = 90.0;
 const image_width: u32 = 384;
 const image_height = @floatToInt(u32, @intToFloat(f64, image_width) / aspect_ratio);
 const max_color = 255;
@@ -77,20 +76,34 @@ fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
     return Vec3.zero();
 }
 
+pub fn writeColor(color: Vec3, out: var) !void {
+    const samples = @intToFloat(f64, samples_per_pixel);
+    const r = math.sqrt(color.x / samples);
+    const g = math.sqrt(color.y / samples);
+    const b = math.sqrt(color.z / samples);
+
+    const max = @intToFloat(f64, max_color);
+    try out.print("{} {} {}\n", .{
+        @floatToInt(u8, r * max),
+        @floatToInt(u8, g * max),
+        @floatToInt(u8, b * max),
+    });
+}
+
 pub fn main() !void {
-    const stdout = std.io.getStdOut().outStream();
-    const stderr = std.io.getStdErr().outStream();
+    const stdout = io.getStdOut().outStream();
+    const stderr = io.getStdErr().outStream();
 
     try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
 
     var prng = rand.DefaultPrng.init(0);
 
-    const camera = Camera.new(fov, aspect_ratio);
+    const camera = Camera.new(Vec3.new(-2, 2, 1), Vec3.new(0, 0, -1), Vec3.new(0, 1, 0), 20, aspect_ratio);
 
     const spheres = &[_]Sphere{
         Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.1, 0.2, 0.5))),
         Sphere.new(Vec3.new(0, -100.5, -1), 100, Material.lambertian(Vec3.new(0.8, 0.8, 0.0))),
-        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 0.3)),
+        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 0.1)),
         Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.dielectric(1.5)),
         Sphere.new(Vec3.new(-1, 0, -1), -0.45, Material.dielectric(1.5)),
     };
@@ -116,7 +129,7 @@ pub fn main() !void {
 
                 color.addAssign(sample_color);
             }
-            try color.write(stdout, samples_per_pixel, max_color);
+            try writeColor(color, stdout);
         }
     }
 }
