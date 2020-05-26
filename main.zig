@@ -12,36 +12,18 @@ const Sphere = hittable.Sphere;
 const HittableList = hittable.HittableList;
 
 const Ray = @import("ray.zig").Ray;
+const Camera = @import("camera.zig").Camera;
 
 const Material = @import("material.zig").Material;
 
-const factor = 2;
-const image_width = 200 * factor;
-const image_height = 100 * factor;
+const aspect_ratio: f64 = 16.0 / 9.0;
+const fov: f64 = 90.0;
+const image_width: u32 = 384;
+const image_height = @floatToInt(u32, @intToFloat(f64, image_width) / aspect_ratio);
 const max_color = 255;
 const samples_per_pixel = 100;
 const max_depth = 50;
 const min_distance = 0.000001;
-
-const Camera = struct {
-    origin: Vec3,
-    lower_left_corner: Vec3,
-    horizonal: Vec3,
-    vertical: Vec3,
-
-    pub fn new() Camera {
-        return Camera{
-            .origin = Vec3.zero(),
-            .lower_left_corner = Vec3.new(-2, -1, -1),
-            .horizonal = Vec3.new(4, 0, 0),
-            .vertical = Vec3.new(0, 2, 0),
-        };
-    }
-
-    pub fn getRay(self: Camera, u: f64, v: f64) Ray {
-        return Ray.new(self.origin, self.lower_left_corner.add(self.horizonal.mul(u)).add(self.vertical.mul(v)));
-    }
-};
 
 fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     if (depth <= 0) return Vec3.zero();
@@ -103,7 +85,7 @@ pub fn main() !void {
 
     var prng = rand.DefaultPrng.init(0);
 
-    const camera = Camera.new();
+    const camera = Camera.new(fov, aspect_ratio);
 
     const spheres = &[_]Sphere{
         Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.1, 0.2, 0.5))),
@@ -123,8 +105,8 @@ pub fn main() !void {
             var color = Vec3.zero();
             var s: i32 = 0;
             while (s < samples_per_pixel) : (s += 1) {
-                const u = (@intToFloat(f64, x) + prng.random.float(f64)) / image_width;
-                const v = (@intToFloat(f64, y) + prng.random.float(f64)) / image_height;
+                const u = (@intToFloat(f64, x) + prng.random.float(f64)) / @intToFloat(f64, image_width);
+                const v = (@intToFloat(f64, y) + prng.random.float(f64)) / @intToFloat(f64, image_height);
                 const ray = camera.getRay(u, v);
 
                 // const sample_color = rayNormal(ray, world);
