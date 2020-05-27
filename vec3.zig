@@ -52,6 +52,15 @@ pub const Vec3 = struct {
         return if (in_unit_sphere.dot(normal) > 0) in_unit_sphere else in_unit_sphere.mul(-1);
     }
 
+    pub fn randomInUnitDisk(random: *Random) Vec3 {
+        while (true) {
+            const p = Vec3.new(randomf64Range(random, -1, 1), randomf64Range(random, -1, 1), 0);
+            if (p.lengthSquared() < 1) {
+                return p;
+            }
+        }
+    }
+
     pub fn neg(self: Vec3) Vec3 {
         return self.mul(-1);
     }
@@ -105,7 +114,6 @@ pub const Vec3 = struct {
             self.x * other.y - self.y * other.x,
         );
     }
-
 };
 
 fn randomf64Range(random: *Random, min: f64, max: f64) f64 {

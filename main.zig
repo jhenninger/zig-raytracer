@@ -98,7 +98,13 @@ pub fn main() !void {
 
     var prng = rand.DefaultPrng.init(0);
 
-    const camera = Camera.new(Vec3.new(-2, 2, 1), Vec3.new(0, 0, -1), Vec3.new(0, 1, 0), 20, aspect_ratio);
+    const look_from = Vec3.new(3, 3, 2);
+    const look_at = Vec3.new(0, 0, -1);
+    const vup = Vec3.new(0, 1, 0);
+    const focus_distance = look_from.sub(look_at).length();
+    const aperture = 2.0;
+
+    const camera = Camera.new(look_from, look_at, vup, 20, aspect_ratio, aperture, focus_distance);
 
     const spheres = &[_]Sphere{
         Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.1, 0.2, 0.5))),
@@ -120,7 +126,7 @@ pub fn main() !void {
             while (s < samples_per_pixel) : (s += 1) {
                 const u = (@intToFloat(f64, x) + prng.random.float(f64)) / @intToFloat(f64, image_width);
                 const v = (@intToFloat(f64, y) + prng.random.float(f64)) / @intToFloat(f64, image_height);
-                const ray = camera.getRay(u, v);
+                const ray = camera.getRay(u, v, &prng.random);
 
                 // const sample_color = rayNormal(ray, world);
                 // const sample_color = rayAlbedo(ray, world);
