@@ -1,5 +1,6 @@
 const std = @import("std");
 const math = std.math;
+const ArrayList = std.ArrayList;
 
 const Vec3 = @import("vec3.zig").Vec3;
 const Ray = @import("ray.zig").Ray;
@@ -63,7 +64,7 @@ pub const Sphere = struct {
 };
 
 pub const HittableList = struct {
-    objects: []const Sphere,
+    list: ArrayList(Sphere),
 
     pub fn hit(self: HittableList, ray: Ray, t_min: f64, t_max: f64) ?HitRecord {
         var record: ?HitRecord = null;
@@ -71,7 +72,7 @@ pub const HittableList = struct {
 
         // iterating by reference is important here, otherwise we will store a wrong pointer to
         // the object's Material in the HitRecord
-        for (self.objects) |*hittable| {
+        for (self.list.items) |*hittable| {
             if (hittable.hit(ray, t_min, closest)) |current| {
                 record = current;
                 closest = current.distance;
@@ -79,5 +80,9 @@ pub const HittableList = struct {
         }
 
         return record;
+    }
+
+    pub fn deinit(self: HittableList) void {
+        self.list.deinit();
     }
 };

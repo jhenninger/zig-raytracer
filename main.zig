@@ -2,6 +2,8 @@ const std = @import("std");
 const math = std.math;
 const io = std.io;
 const rand = std.rand;
+const heap = std.heap;
+const Allocator = std.mem.Allocator;
 const Random = rand.Random;
 const ArrayList = std.ArrayList;
 
@@ -76,7 +78,7 @@ fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
     return Vec3.zero();
 }
 
-pub fn writeColor(color: Vec3, out: var) !void {
+fn writeColor(color: Vec3, out: var) !void {
     const samples = @intToFloat(f64, samples_per_pixel);
     const r = math.sqrt(color.x / samples);
     const g = math.sqrt(color.y / samples);
@@ -90,6 +92,60 @@ pub fn writeColor(color: Vec3, out: var) !void {
     });
 }
 
+pub fn randomScene(random: *Random, allocator: *Allocator) !HittableList {
+    const gridSize = 28;
+    var list = try ArrayList(Sphere).initCapacity(allocator, gridSize * gridSize + 4);
+
+    const large_radius = 1;
+    const large_spheres = [_]Sphere{
+        Sphere.new(Vec3.new(0, 1, 0), large_radius, Material.dielectric(1.5)),
+        Sphere.new(Vec3.new(-4, 1, 0), large_radius, Material.lambertian(Vec3.new(0.4, 0.2, 0.1))),
+        Sphere.new(Vec3.new(4, 1, 0), large_radius, Material.metal(Vec3.new(0.7, 0.6, 0.5), 0.0)),
+    };
+    try list.appendSlice(&large_spheres);
+
+    const small_radius = 0.2;
+
+    var x: i32 = -gridSize / 2;
+    while (x < gridSize / 2) : (x += 1) {
+        var z: i32 = -gridSize / 2;
+        inner: while (z < gridSize / 2) : (z += 1) {
+            const center = Vec3.new(@intToFloat(f64, x) + random.float(f64), small_radius, @intToFloat(f64, z) + random.float(f64));
+
+            // don't create spheres that are too close to each other
+            for (list.items) |sphere| {
+                if (center.sub(sphere.center).length() < sphere.radius * 1.05 + small_radius) {
+                    continue :inner;
+                }
+            }
+
+            const choose_mat = random.float(f64);
+            var material: Material = undefined;
+
+            if (choose_mat < 0.6) {
+                // diffuse
+                const albedo = Vec3.rand(random).mulVec(Vec3.rand(random));
+                material = Material.lambertian(albedo);
+            } else if (choose_mat < 0.92) {
+                // metal
+                const albedo = Vec3.randomRange(random, 0.5, 1);
+                const fuzz = random.float(f64) / 2;
+                material = Material.metal(albedo, fuzz);
+            } else {
+                // glass
+                material = Material.dielectric(1.5);
+            }
+
+            try list.append(Sphere.new(center, small_radius, material));
+        }
+    }
+
+    const ground = Sphere.new(Vec3.new(0, -1000, 0), 1000, Material.lambertian(Vec3.new(0.5, 0.5, 0.5)));
+    try list.append(ground);
+
+    return HittableList{ .list = list };
+}
+
 pub fn main() !void {
     const stdout = io.getStdOut().outStream();
     const stderr = io.getStdErr().outStream();
@@ -97,24 +153,20 @@ pub fn main() !void {
     try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
 
     var prng = rand.DefaultPrng.init(0);
+    const random = &prng.random;
 
-    const look_from = Vec3.new(3, 3, 2);
-    const look_at = Vec3.new(0, 0, -1);
+    const look_from = Vec3.new(13, 2, 3);
+    const look_at = Vec3.new(0, 0, 0);
     const vup = Vec3.new(0, 1, 0);
-    const focus_distance = look_from.sub(look_at).length();
-    const aperture = 2.0;
+    const focus_distance = 10.0;
+    const aperture = 0.1;
+    const fov = 20;
 
-    const camera = Camera.new(look_from, look_at, vup, 20, aspect_ratio, aperture, focus_distance);
+    const camera = Camera.new(look_from, look_at, vup, fov, aspect_ratio, aperture, focus_distance);
 
-    const spheres = &[_]Sphere{
-        Sphere.new(Vec3.new(0, 0, -1), 0.5, Material.lambertian(Vec3.new(0.1, 0.2, 0.5))),
-        Sphere.new(Vec3.new(0, -100.5, -1), 100, Material.lambertian(Vec3.new(0.8, 0.8, 0.0))),
-        Sphere.new(Vec3.new(1, 0, -1), 0.5, Material.metal(Vec3.new(0.8, 0.6, 0.2), 0.1)),
-        Sphere.new(Vec3.new(-1, 0, -1), 0.5, Material.dielectric(1.5)),
-        Sphere.new(Vec3.new(-1, 0, -1), -0.45, Material.dielectric(1.5)),
-    };
-
-    const world = HittableList{ .objects = spheres };
+    const allocator = std.heap.page_allocator;
+    const world = try randomScene(random, allocator);
+    defer world.deinit();
 
     var y: i32 = image_height;
     while (y >= 0) : (y -= 1) {
@@ -124,9 +176,9 @@ pub fn main() !void {
             var color = Vec3.zero();
             var s: i32 = 0;
             while (s < samples_per_pixel) : (s += 1) {
-                const u = (@intToFloat(f64, x) + prng.random.float(f64)) / @intToFloat(f64, image_width);
-                const v = (@intToFloat(f64, y) + prng.random.float(f64)) / @intToFloat(f64, image_height);
-                const ray = camera.getRay(u, v, &prng.random);
+                const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, image_width);
+                const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, image_height);
+                const ray = camera.getRay(u, v, random);
 
                 // const sample_color = rayNormal(ray, world);
                 // const sample_color = rayAlbedo(ray, world);

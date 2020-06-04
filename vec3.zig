@@ -23,6 +23,14 @@ pub const Vec3 = struct {
         return Vec3.new(1, 1, 1);
     }
 
+    pub fn rand(random: *Random) Vec3 {
+        return Vec3.new(
+            random.float(f64),
+            random.float(f64),
+            random.float(f64),
+        );
+    }
+
     pub fn randomRange(random: *Random, min: f64, max: f64) Vec3 {
         return Vec3.new(
             randomf64Range(random, min, max),
