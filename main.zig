@@ -19,7 +19,7 @@ const Camera = @import("camera.zig").Camera;
 const Material = @import("material.zig").Material;
 
 const aspect_ratio: f64 = 16.0 / 9.0;
-const image_width: u32 = 384;
+const image_width: u32 = 1200;
 const image_height = @floatToInt(u32, @intToFloat(f64, image_width) / aspect_ratio);
 const max_color = 255;
 const samples_per_pixel = 100;
@@ -168,7 +168,7 @@ pub fn main() !void {
     const world = try randomScene(random, allocator);
     defer world.deinit();
 
-    var y: i32 = image_height;
+    var y: i32 = image_height - 1;
     while (y >= 0) : (y -= 1) {
         try stderr.print("\rScanlines remaining: {}      ", .{@intCast(u32, y)});
         var x: i32 = 0;
@@ -176,18 +176,20 @@ pub fn main() !void {
             var color = Vec3.zero();
             var s: i32 = 0;
             while (s < samples_per_pixel) : (s += 1) {
-                const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, image_width);
-                const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, image_height);
+                const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, image_width - 1);
+                const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, image_height - 1);
                 const ray = camera.getRay(u, v, random);
 
                 // const sample_color = rayNormal(ray, world);
                 // const sample_color = rayAlbedo(ray, world);
-                // const sample_color = rayDepth(ray, max_depth, world, &prng.random);
-                const sample_color = rayColor(ray, max_depth, world, &prng.random);
+                // const sample_color = rayDepth(ray, max_depth, world, random);
+                const sample_color = rayColor(ray, max_depth, world, random);
 
                 color.addAssign(sample_color);
             }
             try writeColor(color, stdout);
         }
     }
+
+    try stderr.print("\nDone.\n", .{});
 }

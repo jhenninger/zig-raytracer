@@ -16,7 +16,7 @@ pub const Camera = struct {
     lens_radius: f64,
 
     pub fn new(look_from: Vec3, look_at: Vec3, vup: Vec3, vfov: f64, aspect_ratio: f64, aperture: f64, focus_distance: f64) Camera {
-        const theta = to_radians(vfov);
+        const theta = toRadians(vfov);
         const h = math.tan(theta / 2);
         const viewport_height = 2 * h;
         const viewport_width = aspect_ratio * viewport_height;
@@ -50,6 +50,6 @@ pub const Camera = struct {
     }
 };
 
-fn to_radians(degrees: f64) f64 {
+fn toRadians(degrees: f64) f64 {
     return degrees * (math.pi / 180.0);
 }
