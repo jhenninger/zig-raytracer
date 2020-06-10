@@ -3,9 +3,13 @@ const math = std.math;
 const io = std.io;
 const rand = std.rand;
 const heap = std.heap;
+const time = std.time;
+const warn = std.debug.warn;
 const Allocator = std.mem.Allocator;
 const Random = rand.Random;
 const ArrayList = std.ArrayList;
+const Thread = std.Thread;
+const AtomicInt = std.atomic.Int;
 
 const Vec3 = @import("vec3.zig").Vec3;
 
@@ -18,9 +22,7 @@ const Camera = @import("camera.zig").Camera;
 
 const Material = @import("material.zig").Material;
 
-const aspect_ratio: f64 = 16.0 / 9.0;
-const image_width: u32 = 1200;
-const image_height = @floatToInt(u32, @intToFloat(f64, image_width) / aspect_ratio);
+const aspect_ratio = 16.0 / 9.0;
 const max_color = 255;
 const samples_per_pixel = 100;
 const max_depth = 50;
@@ -146,11 +148,81 @@ pub fn randomScene(random: *Random, allocator: *Allocator) !HittableList {
     return HittableList{ .list = list };
 }
 
-pub fn main() !void {
-    const stdout = io.getStdOut().outStream();
-    const stderr = io.getStdErr().outStream();
+const Context = struct {
+    idx: usize,
+    num_threads: usize,
+    world: *const HittableList,
+    camera: *const Camera,
+    image_width: usize,
+    image_height: usize,
+    next_pixel: *AtomicInt(usize),
+    image: []Vec3,
+};
 
-    try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
+pub fn render(context: Context) void {
+    var prng = rand.DefaultPrng.init(context.idx);
+    const random = &prng.random;
+
+    const width = context.image_width;
+    const height = context.image_height;
+    const pixels = width * height;
+
+    var p = context.next_pixel.incr();
+    while (p < pixels) : (p = context.next_pixel.incr()) {
+        const x = p % width;
+        const y = height - 1 - p / width;
+
+        var color = Vec3.zero();
+        var s: u32 = 0;
+        while (s < samples_per_pixel) : (s += 1) {
+            const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, width - 1);
+            const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, height - 1);
+            const ray = context.camera.getRay(u, v, random);
+
+            // const sample_color = rayNormal(ray, *context.world);
+            // const sample_color = rayAlbedo(ray, *context.world);
+            // const sample_color = rayDepth(ray, max_depth, *context.world, random);
+            const sample_color = rayColor(ray, max_depth, context.world.*, random);
+
+            color.addAssign(sample_color);
+        }
+
+        context.image[p] = color;
+    }
+}
+
+fn printUsageAndExit(binary_name: []const u8) noreturn {
+    warn("Usage: {} <width> [<threads>]\n", .{binary_name});
+    std.process.exit(1);
+}
+
+fn argAsNumber(allocator: *Allocator, args: var) ?anyerror!usize {
+    const arg = try args.next(allocator) orelse return null;
+    const number = try std.fmt.parseUnsigned(usize, arg, 10);
+    if (number == 0) {
+        return error.InvalidArgument;
+    }
+
+    return number;
+}
+
+pub fn main() !void {
+    const start = time.milliTimestamp();
+
+    var arena = heap.ArenaAllocator.init(heap.page_allocator);
+    defer arena.deinit();
+    const allocator = &arena.allocator;
+
+    var args = std.process.args();
+
+    const binary_name = try args.next(allocator) orelse "raytracer";
+    const image_width = try argAsNumber(allocator, &args) orelse printUsageAndExit(binary_name);
+    const num_threads = try argAsNumber(allocator, &args) orelse try Thread.cpuCount();
+
+    const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
+    const pixels = image_width * image_height;
+
+    const stdout = io.getStdOut().outStream();
 
     var prng = rand.DefaultPrng.init(0);
     const random = &prng.random;
@@ -164,32 +236,61 @@ pub fn main() !void {
 
     const camera = Camera.new(look_from, look_at, vup, fov, aspect_ratio, aperture, focus_distance);
 
-    const allocator = std.heap.page_allocator;
     const world = try randomScene(random, allocator);
-    defer world.deinit();
 
-    var y: i32 = image_height - 1;
-    while (y >= 0) : (y -= 1) {
-        try stderr.print("\rScanlines remaining: {}      ", .{@intCast(u32, y)});
-        var x: i32 = 0;
-        while (x < image_width) : (x += 1) {
-            var color = Vec3.zero();
-            var s: i32 = 0;
-            while (s < samples_per_pixel) : (s += 1) {
-                const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, image_width - 1);
-                const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, image_height - 1);
-                const ray = camera.getRay(u, v, random);
+    const threads = try allocator.alloc(*Thread, num_threads);
+    var image = try allocator.alloc(Vec3, pixels);
+    var next_pixel = AtomicInt(usize).init(0);
 
-                // const sample_color = rayNormal(ray, world);
-                // const sample_color = rayAlbedo(ray, world);
-                // const sample_color = rayDepth(ray, max_depth, world, random);
-                const sample_color = rayColor(ray, max_depth, world, random);
+    warn(
+        \\Size: {}x{}
+        \\Pixels: {}
+        \\Samples per pixel: {}
+        \\Threads: {}
+        \\
+    , .{ image_width, image_height, pixels, samples_per_pixel, num_threads });
 
-                color.addAssign(sample_color);
-            }
-            try writeColor(color, stdout);
-        }
+    for (threads) |*thread, i| {
+        const context = Context{
+            .idx = i,
+            .num_threads = num_threads,
+            .world = &world,
+            .camera = &camera,
+            .image_width = image_width,
+            .image_height = image_height,
+            .next_pixel = &next_pixel,
+            .image = image,
+        };
+
+        thread.* = try Thread.spawn(context, render);
     }
 
-    try stderr.print("\nDone.\n", .{});
+    while (true) {
+        const current_pixel = next_pixel.get();
+        const rendered = if (current_pixel > num_threads) current_pixel - num_threads else 0;
+        const percent = @intToFloat(f64, rendered) * 100 / @intToFloat(f64, pixels);
+
+        warn("\r{d:.1}%", .{percent});
+
+        if (rendered == pixels) {
+            break;
+        }
+
+        std.time.sleep(250 * std.time.ns_per_ms);
+    }
+
+    for (threads) |thread| {
+        thread.wait();
+    }
+
+    const elapsed = @intToFloat(f64, std.time.milliTimestamp() - start) / time.ms_per_s;
+    warn("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
+
+    try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
+
+    for (image) |color| {
+        try writeColor(color, stdout);
+    }
+
+    warn("Done\n", .{});
 }
