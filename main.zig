@@ -81,16 +81,11 @@ fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
 }
 
 fn writeColor(color: Vec3, out: var) !void {
-    const samples = @intToFloat(f64, samples_per_pixel);
-    const r = math.sqrt(color.x / samples);
-    const g = math.sqrt(color.y / samples);
-    const b = math.sqrt(color.z / samples);
-
     const max = @intToFloat(f64, max_color);
-    try out.print("{} {} {}\n", .{
-        @floatToInt(u8, r * max),
-        @floatToInt(u8, g * max),
-        @floatToInt(u8, b * max),
+    try std.fmt.format(out, "{} {} {}\n", .{
+        @floatToInt(u8, math.sqrt(color.x) * max),
+        @floatToInt(u8, math.sqrt(color.y) * max),
+        @floatToInt(u8, math.sqrt(color.z) * max),
     });
 }
 
@@ -179,15 +174,15 @@ pub fn render(context: Context) void {
             const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, height - 1);
             const ray = context.camera.getRay(u, v, random);
 
-            // const sample_color = rayNormal(ray, *context.world);
-            // const sample_color = rayAlbedo(ray, *context.world);
-            // const sample_color = rayDepth(ray, max_depth, *context.world, random);
+            // const sample_color = rayNormal(ray, context.world.*);
+            // const sample_color = rayAlbedo(ray, context.world.*);
+            // const sample_color = rayDepth(ray, max_depth, context.world.*, random);
             const sample_color = rayColor(ray, max_depth, context.world.*, random);
 
             color.addAssign(sample_color);
         }
 
-        context.image[p] = color;
+        context.image[p] = color.div(@intToFloat(f64, samples_per_pixel));
     }
 }
 
@@ -222,7 +217,8 @@ pub fn main() !void {
     const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
     const pixels = image_width * image_height;
 
-    const stdout = io.getStdOut().outStream();
+    var buffered_stdout = io.bufferedWriter(io.getStdOut().outStream());
+    const stdout_writer = buffered_stdout.writer();
 
     var prng = rand.DefaultPrng.init(0);
     const random = &prng.random;
@@ -276,7 +272,7 @@ pub fn main() !void {
             break;
         }
 
-        std.time.sleep(250 * std.time.ns_per_ms);
+        std.time.sleep(std.time.ns_per_s);
     }
 
     for (threads) |thread| {
@@ -286,11 +282,11 @@ pub fn main() !void {
     const elapsed = @intToFloat(f64, std.time.milliTimestamp() - start) / time.ms_per_s;
     warn("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
 
-    try stdout.print("P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
-
+    try std.fmt.format(stdout_writer, "P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
     for (image) |color| {
-        try writeColor(color, stdout);
+        try writeColor(color, stdout_writer);
     }
+    try buffered_stdout.flush();
 
     warn("Done\n", .{});
 }
