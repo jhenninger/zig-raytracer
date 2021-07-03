@@ -4,12 +4,14 @@ const io = std.io;
 const rand = std.rand;
 const heap = std.heap;
 const time = std.time;
+const process = std.process;
+const fmt = std.fmt;
 const warn = std.debug.warn;
 const Allocator = std.mem.Allocator;
 const Random = rand.Random;
 const ArrayList = std.ArrayList;
 const Thread = std.Thread;
-const AtomicInt = std.atomic.Int;
+const Atomic = std.atomic.Atomic;
 
 const Vec3 = @import("vec3.zig").Vec3;
 
@@ -80,9 +82,9 @@ fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
     return Vec3.zero();
 }
 
-fn writeColor(color: Vec3, out: var) !void {
+fn writeColor(color: Vec3, writer: anytype) !void {
     const max = @intToFloat(f64, max_color);
-    try std.fmt.format(out, "{} {} {}\n", .{
+    try fmt.format(writer, "{} {} {}\n", .{
         @floatToInt(u8, math.sqrt(color.x) * max),
         @floatToInt(u8, math.sqrt(color.y) * max),
         @floatToInt(u8, math.sqrt(color.z) * max),
@@ -145,13 +147,16 @@ pub fn randomScene(random: *Random, allocator: *Allocator) !HittableList {
 
 const Context = struct {
     idx: usize,
-    num_threads: usize,
     world: *const HittableList,
     camera: *const Camera,
     image_width: usize,
     image_height: usize,
-    next_pixel: *AtomicInt(usize),
+    next_pixel: *Atomic(usize),
     image: []Vec3,
+
+    pub fn nextPixel(self: Context) usize {
+        return self.next_pixel.fetchAdd(1, .Monotonic);
+    }
 };
 
 pub fn render(context: Context) void {
@@ -162,8 +167,8 @@ pub fn render(context: Context) void {
     const height = context.image_height;
     const pixels = width * height;
 
-    var p = context.next_pixel.incr();
-    while (p < pixels) : (p = context.next_pixel.incr()) {
+    var p = context.nextPixel();
+    while (p < pixels) : (p = context.nextPixel()) {
         const x = p % width;
         const y = height - 1 - p / width;
 
@@ -187,13 +192,13 @@ pub fn render(context: Context) void {
 }
 
 fn printUsageAndExit(binary_name: []const u8) noreturn {
-    warn("Usage: {} <width> [<threads>]\n", .{binary_name});
-    std.process.exit(1);
+    warn("Usage: {s} <width> [<threads>]\n", .{binary_name});
+    process.exit(1);
 }
 
-fn argAsNumber(allocator: *Allocator, args: var) ?anyerror!usize {
+fn argAsNumber(allocator: *Allocator, args: *process.ArgIterator) ?anyerror!usize {
     const arg = try args.next(allocator) orelse return null;
-    const number = try std.fmt.parseUnsigned(usize, arg, 10);
+    const number = try fmt.parseUnsigned(usize, arg, 10);
     if (number == 0) {
         return error.InvalidArgument;
     }
@@ -208,7 +213,7 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = &arena.allocator;
 
-    var args = std.process.args();
+    var args = process.args();
 
     const binary_name = try args.next(allocator) orelse "raytracer";
     const image_width = try argAsNumber(allocator, &args) orelse printUsageAndExit(binary_name);
@@ -217,7 +222,7 @@ pub fn main() !void {
     const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
     const pixels = image_width * image_height;
 
-    var buffered_stdout = io.bufferedWriter(io.getStdOut().outStream());
+    var buffered_stdout = io.bufferedWriter(io.getStdOut().writer());
     const stdout_writer = buffered_stdout.writer();
 
     var prng = rand.DefaultPrng.init(0);
@@ -236,7 +241,7 @@ pub fn main() !void {
 
     const threads = try allocator.alloc(*Thread, num_threads);
     var image = try allocator.alloc(Vec3, pixels);
-    var next_pixel = AtomicInt(usize).init(0);
+    var next_pixel = Atomic(usize).init(0);
 
     warn(
         \\Size: {}x{}
@@ -249,7 +254,6 @@ pub fn main() !void {
     for (threads) |*thread, i| {
         const context = Context{
             .idx = i,
-            .num_threads = num_threads,
             .world = &world,
             .camera = &camera,
             .image_width = image_width,
@@ -258,11 +262,11 @@ pub fn main() !void {
             .image = image,
         };
 
-        thread.* = try Thread.spawn(context, render);
+        thread.* = try Thread.spawn(render, context);
     }
 
     while (true) {
-        const current_pixel = next_pixel.get();
+        const current_pixel = next_pixel.load(.Monotonic);
         const rendered = if (current_pixel > num_threads) current_pixel - num_threads else 0;
         const percent = @intToFloat(f64, rendered) * 100 / @intToFloat(f64, pixels);
 
@@ -272,17 +276,17 @@ pub fn main() !void {
             break;
         }
 
-        std.time.sleep(std.time.ns_per_s);
+        time.sleep(time.ns_per_s);
     }
 
     for (threads) |thread| {
         thread.wait();
     }
 
-    const elapsed = @intToFloat(f64, std.time.milliTimestamp() - start) / time.ms_per_s;
+    const elapsed = @intToFloat(f64, time.milliTimestamp() - start) / time.ms_per_s;
     warn("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
 
-    try std.fmt.format(stdout_writer, "P3\n{}\n{}\n{}\n", .{ image_width, image_height, max_color });
+    try fmt.format(stdout_writer, "P3\n{d} {d}\n{d}\n", .{ image_width, image_height, max_color });
     for (image) |color| {
         try writeColor(color, stdout_writer);
     }

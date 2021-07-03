@@ -39,7 +39,7 @@ pub const Sphere = struct {
         };
     }
 
-    pub fn hit(self: Sphere, ray: Ray, tmin: f64, tmax: f64) ?HitRecord {
+    pub fn hit(self: *const Sphere, ray: Ray, tmin: f64, tmax: f64) ?HitRecord {
         const oc = ray.origin.sub(self.center);
         const a = ray.direction.lengthSquared();
         const half_b = ray.direction.dot(oc);
