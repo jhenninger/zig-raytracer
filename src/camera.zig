@@ -41,7 +41,7 @@ pub const Camera = struct {
         };
     }
 
-    pub fn getRay(self: Camera, s: f64, t: f64, random: *Random) Ray {
+    pub fn getRay(self: Camera, s: f64, t: f64, random: Random) Ray {
         const rd = Vec3.randomInUnitDisk(random).mul(self.lens_radius);
         const offset = self.u.mul(rd.x).add(self.v.mul(rd.y));
 

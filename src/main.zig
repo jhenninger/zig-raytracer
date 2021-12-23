@@ -6,7 +6,7 @@ const heap = std.heap;
 const time = std.time;
 const process = std.process;
 const fmt = std.fmt;
-const warn = std.debug.warn;
+const print = std.debug.print;
 const Allocator = std.mem.Allocator;
 const Random = rand.Random;
 const ArrayList = std.ArrayList;
@@ -30,7 +30,7 @@ const samples_per_pixel = 100;
 const max_depth = 50;
 const min_distance = 0.000001;
 
-fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
+fn rayColor(ray: Ray, depth: i32, world: HittableList, random: Random) Vec3 {
     if (depth <= 0) return Vec3.zero();
 
     if (world.hit(ray, min_distance, math.inf(f64))) |hit| {
@@ -48,7 +48,7 @@ fn rayColor(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
     return white.add(blue);
 }
 
-fn rayDepth(ray: Ray, depth: i32, world: HittableList, random: *Random) Vec3 {
+fn rayDepth(ray: Ray, depth: i32, world: HittableList, random: Random) Vec3 {
     if (depth <= 0) {
         return Vec3.one();
     }
@@ -91,7 +91,7 @@ fn writeColor(color: Vec3, writer: anytype) !void {
     });
 }
 
-pub fn randomScene(random: *Random, allocator: *Allocator) !HittableList {
+pub fn randomScene(random: Random, allocator: Allocator) !HittableList {
     const gridSize = 28;
     var list = try ArrayList(Sphere).initCapacity(allocator, gridSize * gridSize + 4);
 
@@ -146,7 +146,6 @@ pub fn randomScene(random: *Random, allocator: *Allocator) !HittableList {
 }
 
 const Context = struct {
-    idx: usize,
     world: *const HittableList,
     camera: *const Camera,
     image_width: usize,
@@ -159,9 +158,9 @@ const Context = struct {
     }
 };
 
-pub fn render(context: Context) void {
-    var prng = rand.DefaultPrng.init(context.idx);
-    const random = &prng.random;
+pub fn render(idx: usize, context: Context) void {
+    var prng = rand.DefaultPrng.init(idx);
+    const random = prng.random();
 
     const width = context.image_width;
     const height = context.image_height;
@@ -192,11 +191,11 @@ pub fn render(context: Context) void {
 }
 
 fn printUsageAndExit(binary_name: []const u8) noreturn {
-    warn("Usage: {s} <width> [<threads>]\n", .{binary_name});
+    print("Usage: {s} <width> [<threads>]\n", .{binary_name});
     process.exit(1);
 }
 
-fn argAsNumber(allocator: *Allocator, args: *process.ArgIterator) ?anyerror!usize {
+fn argAsNumber(allocator: Allocator, args: *process.ArgIterator) ?anyerror!usize {
     const arg = try args.next(allocator) orelse return null;
     const number = try fmt.parseUnsigned(usize, arg, 10);
     if (number == 0) {
@@ -211,13 +210,13 @@ pub fn main() !void {
 
     var arena = heap.ArenaAllocator.init(heap.page_allocator);
     defer arena.deinit();
-    const allocator = &arena.allocator;
+    const allocator = arena.allocator();
 
     var args = process.args();
 
     const binary_name = try args.next(allocator) orelse "raytracer";
     const image_width = try argAsNumber(allocator, &args) orelse printUsageAndExit(binary_name);
-    const num_threads = try argAsNumber(allocator, &args) orelse try Thread.cpuCount();
+    const num_threads = try argAsNumber(allocator, &args) orelse try Thread.getCpuCount();
 
     const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
     const pixels = image_width * image_height;
@@ -226,7 +225,7 @@ pub fn main() !void {
     const stdout_writer = buffered_stdout.writer();
 
     var prng = rand.DefaultPrng.init(0);
-    const random = &prng.random;
+    const random = prng.random();
 
     const look_from = Vec3.new(13, 2, 3);
     const look_at = Vec3.new(0, 0, 0);
@@ -239,11 +238,11 @@ pub fn main() !void {
 
     const world = try randomScene(random, allocator);
 
-    const threads = try allocator.alloc(*Thread, num_threads);
+    const threads = try allocator.alloc(Thread, num_threads);
     var image = try allocator.alloc(Vec3, pixels);
     var next_pixel = Atomic(usize).init(0);
 
-    warn(
+    print(
         \\Size: {}x{}
         \\Pixels: {}
         \\Samples per pixel: {}
@@ -251,18 +250,17 @@ pub fn main() !void {
         \\
     , .{ image_width, image_height, pixels, samples_per_pixel, num_threads });
 
-    for (threads) |*thread, i| {
-        const context = Context{
-            .idx = i,
-            .world = &world,
-            .camera = &camera,
-            .image_width = image_width,
-            .image_height = image_height,
-            .next_pixel = &next_pixel,
-            .image = image,
-        };
+    const context = Context{
+        .world = &world,
+        .camera = &camera,
+        .image_width = image_width,
+        .image_height = image_height,
+        .next_pixel = &next_pixel,
+        .image = image,
+    };
 
-        thread.* = try Thread.spawn(render, context);
+    for (threads) |*thread, i| {
+        thread.* = try Thread.spawn(Thread.SpawnConfig{}, render, .{ i, context });
     }
 
     while (true) {
@@ -270,7 +268,7 @@ pub fn main() !void {
         const rendered = if (current_pixel > num_threads) current_pixel - num_threads else 0;
         const percent = @intToFloat(f64, rendered) * 100 / @intToFloat(f64, pixels);
 
-        warn("\r{d:.1}%", .{percent});
+        print("\r{d:.1}%", .{percent});
 
         if (rendered == pixels) {
             break;
@@ -280,11 +278,11 @@ pub fn main() !void {
     }
 
     for (threads) |thread| {
-        thread.wait();
+        thread.join();
     }
 
     const elapsed = @intToFloat(f64, time.milliTimestamp() - start) / time.ms_per_s;
-    warn("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
+    print("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
 
     try fmt.format(stdout_writer, "P3\n{d} {d}\n{d}\n", .{ image_width, image_height, max_color });
     for (image) |color| {
@@ -292,5 +290,5 @@ pub fn main() !void {
     }
     try buffered_stdout.flush();
 
-    warn("Done\n", .{});
+    print("Done\n", .{});
 }

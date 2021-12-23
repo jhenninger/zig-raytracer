@@ -23,7 +23,7 @@ pub const Vec3 = struct {
         return Vec3.new(1, 1, 1);
     }
 
-    pub fn rand(random: *Random) Vec3 {
+    pub fn rand(random: Random) Vec3 {
         return Vec3.new(
             random.float(f64),
             random.float(f64),
@@ -31,7 +31,7 @@ pub const Vec3 = struct {
         );
     }
 
-    pub fn randomRange(random: *Random, min: f64, max: f64) Vec3 {
+    pub fn randomRange(random: Random, min: f64, max: f64) Vec3 {
         return Vec3.new(
             randomf64Range(random, min, max),
             randomf64Range(random, min, max),
@@ -39,7 +39,7 @@ pub const Vec3 = struct {
         );
     }
 
-    pub fn randomInUnitSphere(random: *Random) Vec3 {
+    pub fn randomInUnitSphere(random: Random) Vec3 {
         while (true) {
             const p = Vec3.randomRange(random, -1, 1);
             if (p.lengthSquared() < 1) {
@@ -48,19 +48,19 @@ pub const Vec3 = struct {
         }
     }
 
-    pub fn randomUnitVector(random: *Random) Vec3 {
+    pub fn randomUnitVector(random: Random) Vec3 {
         const a = randomf64Range(random, 0, 2 * math.pi);
         const z = randomf64Range(random, -1, 1);
         const r = math.sqrt(1 - z * z);
         return Vec3.new(r * math.cos(a), r * math.sin(a), z);
     }
 
-    pub fn randomInHemisphere(random: *Random, normal: Vec3) Vec3 {
+    pub fn randomInHemisphere(random: Random, normal: Vec3) Vec3 {
         const in_unit_sphere = randomInUnitSphere(random);
         return if (in_unit_sphere.dot(normal) > 0) in_unit_sphere else in_unit_sphere.mul(-1);
     }
 
-    pub fn randomInUnitDisk(random: *Random) Vec3 {
+    pub fn randomInUnitDisk(random: Random) Vec3 {
         while (true) {
             const p = Vec3.new(randomf64Range(random, -1, 1), randomf64Range(random, -1, 1), 0);
             if (p.lengthSquared() < 1) {
@@ -124,6 +124,6 @@ pub const Vec3 = struct {
     }
 };
 
-fn randomf64Range(random: *Random, min: f64, max: f64) f64 {
+fn randomf64Range(random: Random, min: f64, max: f64) f64 {
     return min + (max - min) * random.float(f64);
 }

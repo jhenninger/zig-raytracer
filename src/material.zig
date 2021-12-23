@@ -16,7 +16,7 @@ pub const Material = union(enum) {
     Metal: Metal,
     Dielectric: Dielectric,
 
-    pub fn scatter(self: Material, ray: Ray, record: HitRecord, random: *Random) ?Scatter {
+    pub fn scatter(self: Material, ray: Ray, record: HitRecord, random: Random) ?Scatter {
         return switch (self) {
             .Lambertian => |m| m.scatter(record, random),
             .Metal => |m| m.scatter(ray, record, random),
@@ -49,7 +49,7 @@ pub const Material = union(enum) {
 pub const Lambertian = struct {
     albedo: Vec3,
 
-    pub fn scatter(self: Lambertian, record: HitRecord, random: *Random) ?Scatter {
+    pub fn scatter(self: Lambertian, record: HitRecord, random: Random) ?Scatter {
         const scatter_direction = record.normal.add(Vec3.randomUnitVector(random));
         return Scatter{
             .ray = Ray.new(record.point, scatter_direction),
@@ -62,7 +62,7 @@ pub const Metal = struct {
     albedo: Vec3,
     fuzz: f64,
 
-    pub fn scatter(self: Metal, ray: Ray, record: HitRecord, random: *Random) ?Scatter {
+    pub fn scatter(self: Metal, ray: Ray, record: HitRecord, random: Random) ?Scatter {
         const reflected = reflect(ray.direction.unit(), record.normal).add(Vec3.randomInUnitSphere(random).mul(self.fuzz));
         if (reflected.dot(record.normal) <= 0) return null;
         return Scatter{
@@ -75,7 +75,7 @@ pub const Metal = struct {
 pub const Dielectric = struct {
     ref_idx: f64,
 
-    pub fn scatter(self: Dielectric, ray: Ray, record: HitRecord, random: *Random) ?Scatter {
+    pub fn scatter(self: Dielectric, ray: Ray, record: HitRecord, random: Random) ?Scatter {
         const etai_over_etat = if (record.front_face) 1 / self.ref_idx else self.ref_idx;
         const unit_direction = ray.direction.unit();
         const cos_theta = math.min(unit_direction.neg().dot(record.normal), 1);
