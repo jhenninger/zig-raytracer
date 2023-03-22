@@ -195,8 +195,8 @@ fn printUsageAndExit(binary_name: []const u8) noreturn {
     process.exit(1);
 }
 
-fn argAsNumber(allocator: Allocator, args: *process.ArgIterator) ?anyerror!usize {
-    const arg = try args.next(allocator) orelse return null;
+fn argAsNumber(args: *process.ArgIterator) !?usize {
+    const arg = args.next() orelse return null;
     const number = try fmt.parseUnsigned(usize, arg, 10);
     if (number == 0) {
         return error.InvalidArgument;
@@ -212,11 +212,11 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    var args = process.args();
+    var args = try process.argsWithAllocator(allocator);
 
-    const binary_name = try args.next(allocator) orelse "raytracer";
-    const image_width = try argAsNumber(allocator, &args) orelse printUsageAndExit(binary_name);
-    const num_threads = try argAsNumber(allocator, &args) orelse try Thread.getCpuCount();
+    const binary_name = args.next() orelse "raytracer";
+    const image_width = try argAsNumber(&args) orelse printUsageAndExit(binary_name);
+    const num_threads = try argAsNumber(&args) orelse try Thread.getCpuCount();
 
     const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
     const pixels = image_width * image_height;
