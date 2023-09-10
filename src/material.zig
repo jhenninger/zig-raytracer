@@ -78,7 +78,7 @@ pub const Dielectric = struct {
     pub fn scatter(self: Dielectric, ray: Ray, record: HitRecord, random: Random) ?Scatter {
         const etai_over_etat = if (record.front_face) 1 / self.ref_idx else self.ref_idx;
         const unit_direction = ray.direction.unit();
-        const cos_theta = math.min(unit_direction.neg().dot(record.normal), 1);
+        const cos_theta = @min(unit_direction.neg().dot(record.normal), 1);
         const sin_theta = math.sqrt(1.0 - cos_theta * cos_theta);
 
         const direction = if (etai_over_etat * sin_theta > 1.0 or random.float(f64) < schlick(cos_theta, etai_over_etat))

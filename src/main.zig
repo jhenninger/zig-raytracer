@@ -59,7 +59,7 @@ fn rayDepth(ray: Ray, depth: i32, world: HittableList, random: Random) Vec3 {
         }
     }
 
-    return Vec3.one().mul(@intToFloat(f64, max_depth - depth) / @intToFloat(f64, max_depth));
+    return Vec3.one().mul(@as(f64, @floatFromInt(max_depth - depth)) / @as(f64, @floatFromInt(max_depth)));
 }
 
 fn rayNormal(ray: Ray, world: HittableList) Vec3 {
@@ -83,11 +83,11 @@ fn rayAlbedo(ray: Ray, world: HittableList) Vec3 {
 }
 
 fn writeColor(color: Vec3, writer: anytype) !void {
-    const max = @intToFloat(f64, max_color);
+    const max = @as(f64, @floatFromInt(max_color));
     try fmt.format(writer, "{} {} {}\n", .{
-        @floatToInt(u8, math.sqrt(color.x) * max),
-        @floatToInt(u8, math.sqrt(color.y) * max),
-        @floatToInt(u8, math.sqrt(color.z) * max),
+        @as(u8, @intFromFloat(math.sqrt(color.x) * max)),
+        @as(u8, @intFromFloat(math.sqrt(color.y) * max)),
+        @as(u8, @intFromFloat(math.sqrt(color.z) * max)),
     });
 }
 
@@ -109,7 +109,7 @@ pub fn randomScene(random: Random, allocator: Allocator) !HittableList {
     while (x < gridSize / 2) : (x += 1) {
         var z: i32 = -gridSize / 2;
         inner: while (z < gridSize / 2) : (z += 1) {
-            const center = Vec3.new(@intToFloat(f64, x) + random.float(f64), small_radius, @intToFloat(f64, z) + random.float(f64));
+            const center = Vec3.new(@as(f64, @floatFromInt(x)) + random.float(f64), small_radius, @as(f64, @floatFromInt(z)) + random.float(f64));
 
             // don't create spheres that are too close to each other
             for (list.items) |sphere| {
@@ -174,8 +174,8 @@ pub fn render(idx: usize, context: Context) void {
         var color = Vec3.zero();
         var s: u32 = 0;
         while (s < samples_per_pixel) : (s += 1) {
-            const u = (@intToFloat(f64, x) + random.float(f64)) / @intToFloat(f64, width - 1);
-            const v = (@intToFloat(f64, y) + random.float(f64)) / @intToFloat(f64, height - 1);
+            const u = (@as(f64, @floatFromInt(x)) + random.float(f64)) / @as(f64, @floatFromInt(width - 1));
+            const v = (@as(f64, @floatFromInt(y)) + random.float(f64)) / @as(f64, @floatFromInt(height - 1));
             const ray = context.camera.getRay(u, v, random);
 
             // const sample_color = rayNormal(ray, context.world.*);
@@ -186,7 +186,7 @@ pub fn render(idx: usize, context: Context) void {
             color.addAssign(sample_color);
         }
 
-        context.image[p] = color.div(@intToFloat(f64, samples_per_pixel));
+        context.image[p] = color.div(@as(f64, @floatFromInt(samples_per_pixel)));
     }
 }
 
@@ -218,7 +218,7 @@ pub fn main() !void {
     const image_width = try argAsNumber(&args) orelse printUsageAndExit(binary_name);
     const num_threads = try argAsNumber(&args) orelse try Thread.getCpuCount();
 
-    const image_height = @floatToInt(usize, @intToFloat(f64, image_width) / aspect_ratio);
+    const image_height = @as(usize, @intFromFloat(@as(f64, @floatFromInt(image_width)) / aspect_ratio));
     const pixels = image_width * image_height;
 
     var buffered_stdout = io.bufferedWriter(io.getStdOut().writer());
@@ -259,14 +259,14 @@ pub fn main() !void {
         .image = image,
     };
 
-    for (threads) |*thread, i| {
+    for (threads, 0..) |*thread, i| {
         thread.* = try Thread.spawn(Thread.SpawnConfig{}, render, .{ i, context });
     }
 
     while (true) {
         const current_pixel = next_pixel.load(.Monotonic);
         const rendered = if (current_pixel > num_threads) current_pixel - num_threads else 0;
-        const percent = @intToFloat(f64, rendered) * 100 / @intToFloat(f64, pixels);
+        const percent = @as(f64, @floatFromInt(rendered)) * 100 / @as(f64, @floatFromInt(pixels));
 
         print("\r{d:.1}%", .{percent});
 
@@ -281,7 +281,7 @@ pub fn main() !void {
         thread.join();
     }
 
-    const elapsed = @intToFloat(f64, time.milliTimestamp() - start) / time.ms_per_s;
+    const elapsed = @as(f64, @floatFromInt(time.milliTimestamp() - start)) / time.ms_per_s;
     print("\nRendering took {d:.3}s\nWriting image\n", .{elapsed});
 
     try fmt.format(stdout_writer, "P3\n{d} {d}\n{d}\n", .{ image_width, image_height, max_color });
