@@ -11,7 +11,7 @@ const Allocator = std.mem.Allocator;
 const Random = rand.Random;
 const ArrayList = std.ArrayList;
 const Thread = std.Thread;
-const Atomic = std.atomic.Atomic;
+const Atomic = std.atomic.Value;
 
 const Vec3 = @import("vec3.zig").Vec3;
 
@@ -154,7 +154,7 @@ const Context = struct {
     image: []Vec3,
 
     pub fn nextPixel(self: Context) usize {
-        return self.next_pixel.fetchAdd(1, .Monotonic);
+        return self.next_pixel.fetchAdd(1, .monotonic);
     }
 };
 
@@ -239,7 +239,7 @@ pub fn main() !void {
     const world = try randomScene(random, allocator);
 
     const threads = try allocator.alloc(Thread, num_threads);
-    var image = try allocator.alloc(Vec3, pixels);
+    const image = try allocator.alloc(Vec3, pixels);
     var next_pixel = Atomic(usize).init(0);
 
     print(
@@ -264,7 +264,7 @@ pub fn main() !void {
     }
 
     while (true) {
-        const current_pixel = next_pixel.load(.Monotonic);
+        const current_pixel = next_pixel.load(.monotonic);
         const rendered = if (current_pixel > num_threads) current_pixel - num_threads else 0;
         const percent = @as(f64, @floatFromInt(rendered)) * 100 / @as(f64, @floatFromInt(pixels));
 
